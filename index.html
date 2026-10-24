@@ -100,9 +100,10 @@ a{color:inherit}
 .cols{display:grid;gap:28px;margin-top:22px}
 @media (min-width:760px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1.7fr)}}
 .cols h2{font-size:1.35rem;margin-bottom:10px}
-.ing{list-style:none;padding:0;margin:0}
-.ing li{padding:9px 0;border-bottom:1px solid var(--line)}
-.ing li.grp{font-weight:600;border-bottom:0;padding-top:16px}
+.sub{font-size:1.1rem;margin:20px 0 8px}
+.ingbox > div:first-child > .sub,.cols section > div > div:first-child > .sub{margin-top:0}
+.ing{padding-left:1.5em;margin:0}
+.ing li{padding:8px 0 8px 4px;border-bottom:1px solid var(--line)}
 .steps{padding-left:1.3em;margin:0}
 .steps li{margin-bottom:14px;line-height:1.65;padding-left:4px}
 .notes{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--star);border-radius:8px;padding:12px 14px;margin-top:22px;white-space:pre-wrap}
@@ -304,6 +305,17 @@ function scaleLine(line, factor) {
   return fmtQty(n * factor) + m[2];
 }
 function isGroup(line) { return /:\s*$/.test(line); }
+// split lines into groups: a line ending with a colon starts a new subheading
+function groupLines(lines) {
+  const groups = [];
+  let cur = { title: "", items: [] };
+  groups.push(cur);
+  lines.forEach(l => {
+    if (isGroup(l)) { cur = { title: l.replace(/:\s*$/, ""), items: [] }; groups.push(cur); }
+    else cur.items.push(l);
+  });
+  return groups.filter(g => g.title || g.items.length);
+}
 
 /* ---------- api ---------- */
 async function api(action, payload) {
@@ -465,7 +477,7 @@ function viewDetail(id) {
   const base = r.servings;
   let cur = S.scale[id] || base;
 
-  const ing = el("ul", { class: "ing" });
+  const ing = el("div", { class: "ingbox" });
   const num = el("b", null, String(cur));
   const minus = el("button", { type: "button", "aria-label": "Fewer servings" }, "−");
   const plus = el("button", { type: "button", "aria-label": "More servings" }, "+");
@@ -473,8 +485,9 @@ function viewDetail(id) {
     const f = base ? cur / base : 1;
     num.textContent = String(cur);
     minus.disabled = cur <= 1;
-    ing.replaceChildren(...r.ingredients.map(line =>
-      isGroup(line) ? el("li", { class: "grp" }, line.replace(/:\s*$/, "")) : el("li", null, scaleLine(line, f))));
+    ing.replaceChildren(...groupLines(r.ingredients).map(g => el("div", null,
+      g.title && el("h3", { class: "sub" }, g.title),
+      g.items.length ? el("ol", { class: "ing" }, g.items.map(x => el("li", null, scaleLine(x, f)))) : null)));
   }
   minus.addEventListener("click", () => { if (cur > 1) { cur--; S.scale[id] = cur; paintIng(); } });
   plus.addEventListener("click", () => { cur++; S.scale[id] = cur; paintIng(); });
@@ -547,7 +560,9 @@ function viewDetail(id) {
       el("section", null, el("h2", null, "Ingredients"),
         r.ingredients.length ? ing : el("p", { class: "hint" }, "No ingredients listed.")),
       el("section", null, el("h2", null, "Method"),
-        r.steps.length ? el("ol", { class: "steps" }, r.steps.map(s => el("li", null, s))) : el("p", { class: "hint" }, "No steps listed."))
+        r.steps.length ? el("div", null, groupLines(r.steps).map(g => el("div", null,
+          g.title && el("h3", { class: "sub" }, g.title),
+          g.items.length ? el("ol", { class: "steps" }, g.items.map(s => el("li", null, s))) : null))) : el("p", { class: "hint" }, "No steps listed."))
     ),
     hist,
     r.notes && el("div", { class: "notes" }, r.notes),
@@ -585,8 +600,8 @@ function viewForm(r) {
   paintDates();
   const prep = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.prep || "", id: "f-prep" });
   const cook = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.cook || "", id: "f-cook" });
-  const ing = el("textarea", { class: "textarea", rows: "9", id: "f-ing", placeholder: "2 cups flour\n1 1/2 tsp salt\nFor the sauce:\n3 tomatoes" }, d.ingredients.join("\n"));
-  const steps = el("textarea", { class: "textarea", rows: "9", id: "f-steps", placeholder: "Heat the oven to 200°C.\nMix the dry ingredients." }, d.steps.join("\n"));
+  const ing = el("textarea", { class: "textarea", rows: "9", id: "f-ing", placeholder: "Popcorn:\n1/2 cup corn kernels\n1 tbsp oil\nCaramel:\n125g butter\n2/3 cup sugar" }, d.ingredients.join("\n"));
+  const steps = el("textarea", { class: "textarea", rows: "9", id: "f-steps", placeholder: "Popcorn:\nHeat the oil in a pot.\nAdd the kernels.\nCaramel:\nMelt the butter and sugar." }, d.steps.join("\n"));
   const notes = el("textarea", { class: "textarea", rows: "3", id: "f-notes" }, d.notes);
   const who = el("input", { class: "input", type: "text", value: d.addedBy, maxlength: "60", autocomplete: "given-name", id: "f-who" });
   const whoErr = el("div", { class: "fielderr", role: "alert" });
@@ -646,9 +661,9 @@ function viewForm(r) {
       chipsBox,
       el("div", { class: "hint" }, "Optional. Add each time you make it. The newest one shows as the last prepared date.")),
     el("div", { class: "field" }, el("label", { for: "f-ing" }, "Ingredients"), ing,
-      el("div", { class: "hint" }, "One per line. End a line with a colon to start a group, like “For the sauce:”. Start lines with a number so servings can scale.")),
+      el("div", { class: "hint" }, "One per line. For a subheading, type it on its own line ending with a colon, like “Popcorn:”. Numbering starts again at 1 under each subheading. Start lines with a number so servings can scale.")),
     el("div", { class: "field" }, el("label", { for: "f-steps" }, "Method"), steps,
-      el("div", { class: "hint" }, "One step per line.")),
+      el("div", { class: "hint" }, "One step per line. Add subheadings the same way, like “Caramel:”.")),
     el("div", { class: "field" }, el("label", { for: "f-notes" }, "Notes"), notes),
     el("div", { class: "field" }, el("label", { for: "f-who" }, "Added by"), who, whoErr),
     el("div", { class: "btnrow" }, save)
