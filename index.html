@@ -510,8 +510,8 @@ function paintList() {
   const st = [];
   if (S.error) st.push(el("div", { class: "banner", role: "alert" }, el("span", null, S.error), el("button", { type: "button", onclick: () => load(false) }, "Retry")));
   if (S.loading && !S.loaded) st.push(el("div", { class: "empty" }, "Loading recipes…"));
-  else if (!S.recipes.length && !S.error) st.push(el("div", { class: "empty" }, el("b", null, "No recipes yet"), "Tap Add recipe to save your first one."));
-  else if (!items.length && S.recipes.length) st.push(el("div", { class: "empty" }, el("b", null, "Nothing matches"), "Try a different search or clear the filter."));
+  else if (!S.recipes.length > 0 && !S.error) st.push(el("div", { class: "empty" }, el("b", null, "No recipes yet"), "Tap Add recipe to save your first one."));
+  else if (!items.length > 0 && S.recipes.length) st.push(el("div", { class: "empty" }, el("b", null, "Nothing matches"), "Try a different search or clear the filter."));
   status.replaceChildren(...st);
 
   grid.replaceChildren(...items.map(card));
@@ -523,11 +523,11 @@ function card(r) {
   if (total) meta.push(el("span", null, fmtMin(total)));
   if (r.servings) meta.push(el("span", null, r.unit ? "Makes " + r.servings + " " + r.unit : "Serves " + r.servings));
   return el("a", { class: "card", href: "#/r/" + encodeURIComponent(r.id), style: r.tags[0] ? "--h:" + hue(r.tags[0]) : "" },
-    r.photos.length && el("div", { class: "cardimg" }, el("img", { src: photoUrl(r.photos[0], 480), alt: "", loading: "lazy", onerror: ev => { const p = ev.target.parentNode; if (p) p.remove(); } })),
+    r.photos.length > 0 && el("div", { class: "cardimg" }, el("img", { src: photoUrl(r.photos[0], 480), alt: "", loading: "lazy", onerror: ev => { const p = ev.target.parentNode; if (p) p.remove(); } })),
     isFav(r) && el("span", { class: "star", "aria-label": "In your favorites" }, "★"),
     el("h3", null, r.title),
-    meta.length && el("div", { class: "meta" }, meta),
-    r.tags.length && el("div", { class: "tags" }, r.tags.map(t => el("span", { class: "tag", style: "--h:" + hue(t) }, t)))
+    meta.length > 0 && el("div", { class: "meta" }, meta),
+    r.tags.length > 0 && el("div", { class: "tags" }, r.tags.map(t => el("span", { class: "tag", style: "--h:" + hue(t) }, t)))
   );
 }
 
@@ -648,9 +648,9 @@ function viewDetail(id) {
   const node = el("div", { class: "wrap detail" },
     el("a", { class: "back", href: "#/" }, "Back to recipes"),
     el("h1", null, r.title),
-    facts.length && el("div", { class: "facts" }, facts),
-    r.tags.length && el("div", { class: "tags" }, r.tags.map(t => el("span", { class: "tag", style: "--h:" + hue(t) }, t))),
-    r.photos.length && el("div", { class: "gallery" }, r.photos.map(id =>
+    facts.length > 0 && el("div", { class: "facts" }, facts),
+    r.tags.length > 0 && el("div", { class: "tags" }, r.tags.map(t => el("span", { class: "tag", style: "--h:" + hue(t) }, t))),
+    r.photos.length > 0 && el("div", { class: "gallery" }, r.photos.map(id =>
       el("a", { href: photoUrl(id, 2000), target: "_blank", rel: "noopener" }, el("img", { src: photoUrl(id, 900), alt: "Photo of " + r.title, loading: "lazy" })))),
     el("div", { class: "cols" },
       el("section", null, el("h2", null, "Ingredients"),
@@ -663,7 +663,7 @@ function viewDetail(id) {
     hist,
     r.notes && el("div", { class: "notes" }, r.notes),
     r.addedBy && el("p", { class: "credit" }, "Added by " + r.addedBy),
-    r.favs.length && el("p", { class: "credit" }, "Favorite of " + r.favs.join(", ")),
+    r.favs.length > 0 && el("p", { class: "credit" }, "Favorite of " + r.favs.join(", ")),
     el("div", { class: "btnrow" },
       el("a", { class: "btn primary", href: "#/edit/" + encodeURIComponent(r.id), style: "text-decoration:none" }, "Edit"),
       favBtn, madeBtn, del),
