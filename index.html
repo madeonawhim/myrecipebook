@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Recipe Book</title>
+<meta name="theme-color" content="#2E6B4F">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍲</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F6F4; --surface:#FFFFFF; --ink:#18211C; --muted:#62716A; --line:#DCE4DF;
+  --accent:#2E6B4F; --accent-ink:#FFFFFF; --star:#D9A800; --danger:#B3402F;
+  --chip-bg-l:91%; --chip-fg-l:24%; --spine-l:42%;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121714; --surface:#1B231E; --ink:#E8EEEA; --muted:#93A39A; --line:#2B362F;
+    --accent:#5FB38B; --accent-ink:#0E1A13; --star:#E6C65C; --danger:#E3786A;
+    --chip-bg-l:22%; --chip-fg-l:86%; --spine-l:58%;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16px/1.5 "Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+h1,h2,h3{font-family:"Young Serif",Georgia,serif;font-weight:400;line-height:1.15;margin:0}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+a{color:inherit}
+
+.wrap{max-width:960px;margin:0 auto;padding:20px 16px 120px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:16px}
+.top h1{font-size:2.2rem}
+.sub{color:var(--muted);font-size:.92rem;margin-top:4px}
+.actions{display:flex;gap:2px}
+.linkbtn{background:none;border:0;color:var(--muted);padding:8px;text-decoration:underline;font-size:.92rem}
+
+.input,.textarea{
+  width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:12px;
+  background:var(--surface);color:var(--ink);
+}
+.textarea{resize:vertical;line-height:1.5}
+.input::placeholder,.textarea::placeholder{color:var(--muted)}
+
+.chips{display:flex;gap:8px;overflow-x:auto;padding:12px 0;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:.92rem}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+.grid{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:640px){.grid{grid-template-columns:1fr 1fr}}
+@media (min-width:960px){.grid{grid-template-columns:1fr 1fr 1fr}}
+
+.card{
+  position:relative;display:block;text-decoration:none;color:inherit;overflow:hidden;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px 22px;
+}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:hsl(var(--h,150) 38% var(--spine-l))}
+.card:hover{border-color:var(--muted)}
+.card h3{font-size:1.25rem;margin-bottom:6px;padding-right:22px}
+.card .star{position:absolute;right:14px;top:14px;color:var(--star)}
+.meta{display:flex;flex-wrap:wrap;gap:2px 14px;color:var(--muted);font-size:.9rem}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tag{
+  background:hsl(var(--h,150) 40% var(--chip-bg-l));color:hsl(var(--h,150) 45% var(--chip-fg-l));
+  border-radius:999px;padding:2px 10px;font-size:.82rem
+}
+
+.fab{
+  position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));
+  background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:14px 22px;
+  font-weight:600;text-decoration:none;box-shadow:0 6px 18px rgba(0,0,0,.22)
+}
+
+.btn{
+  border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:11px 16px;font-weight:500
+}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.wide{width:100%}
+.btn:disabled{opacity:.6;cursor:default}
+.btnrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+
+.back{background:none;border:0;padding:8px 0;margin-bottom:8px;color:var(--muted);text-decoration:none;display:inline-block}
+.detail h1{font-size:2.1rem;margin-bottom:10px}
+.facts{display:flex;flex-wrap:wrap;gap:6px 20px;color:var(--muted);margin-bottom:6px;align-items:center}
+.stepper{display:inline-flex;align-items:center;gap:8px}
+.stepper button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:1.1rem;line-height:1}
+.stepper b{min-width:1.5em;text-align:center;color:var(--ink)}
+.cols{display:grid;gap:28px;margin-top:22px}
+@media (min-width:760px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1.7fr)}}
+.cols h2{font-size:1.35rem;margin-bottom:10px}
+.ing{list-style:none;padding:0;margin:0}
+.ing li{padding:9px 0;border-bottom:1px solid var(--line)}
+.ing li.grp{font-weight:600;border-bottom:0;padding-top:16px}
+.steps{padding-left:1.3em;margin:0}
+.steps li{margin-bottom:14px;line-height:1.65;padding-left:4px}
+.notes{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--star);border-radius:8px;padding:12px 14px;margin-top:22px;white-space:pre-wrap}
+.credit{color:var(--muted);font-size:.88rem;margin-top:22px}
+
+.field{margin-bottom:18px}
+.field label{display:block;font-weight:600;margin-bottom:6px}
+.hint{color:var(--muted);font-size:.88rem;margin-top:5px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.fielderr{color:var(--danger);font-size:.9rem;margin-top:5px}
+.form h1{font-size:1.9rem;margin-bottom:20px}
+.pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pick button{border:1px dashed var(--line);background:none;border-radius:999px;padding:3px 10px;font-size:.85rem;color:var(--muted)}
+
+.gate{max-width:380px;margin:12vh auto 0;padding:0 16px}
+.gate h1{font-size:2.4rem;margin-bottom:6px}
+.gate p.lead{color:var(--muted);margin:0 0 22px}
+.err{color:var(--danger);min-height:1.4em;margin:6px 0 10px}
+
+.banner{
+  display:flex;gap:10px;align-items:center;justify-content:space-between;
+  border:1px solid var(--danger);color:var(--danger);border-radius:12px;padding:10px 12px;margin:8px 0
+}
+.banner button{border:1px solid var(--danger);background:none;color:var(--danger);border-radius:8px;padding:5px 12px}
+.empty{text-align:center;color:var(--muted);padding:48px 12px}
+.empty b{display:block;color:var(--ink);font-family:"Young Serif",Georgia,serif;font-weight:400;font-size:1.3rem;margin-bottom:6px}
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));
+  background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:10;max-width:90%;text-align:center
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// Paste your Apps Script web app URL (ends in /exec) between the quotes.
+// If you leave it empty, people will be asked for it on the sign-in screen instead.
+const HARDCODED_API_URL = "https://script.google.com/macros/s/AKfycbw_vCBr95N3obpnvgmVVKv9-BAQy1rbhJA_KRNDDHvvFTqfw-X2m-N-QcqPssJjKipJRw/exec";
+
+(function () {
+"use strict";
+
+/* ---------- storage ---------- */
+const LS = { url: "rb_url", name: "rb_name", cache: "rb_cache" };
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+
+/* ---------- state ---------- */
+const S = { recipes: [], loaded: false, loading: false, error: "", q: "", tag: "", fav: false, scale: {}, lastLoad: 0, gateMsg: "" };
+let currentView = "";
+let toastTimer = null;
+
+const $app = document.getElementById("app");
+
+/* ---------- tiny DOM helper (text is always set as text, never HTML) ---------- */
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") n.className = v;
+    else if (k === "style") n.style.cssText = v;
+    else if (k === "value") n.value = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    n.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return n;
+}
+
+/* ---------- helpers ---------- */
+function apiUrl() { return HARDCODED_API_URL || store.get(LS.url) || ""; }
+
+function lines(x) {
+  if (Array.isArray(x)) return x.map(s => String(s).trim()).filter(Boolean);
+  return String(x == null ? "" : x).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+}
+function parseTags(s) {
+  const seen = new Set(), out = [];
+  String(s || "").split(/[,;]/).map(t => t.trim()).filter(Boolean).forEach(t => {
+    const k = t.toLowerCase();
+    if (!seen.has(k)) { seen.add(k); out.push(t); }
+  });
+  return out;
+}
+function toInt(v) { const n = parseInt(v, 10); return isFinite(n) && n > 0 ? n : 0; }
+function hue(tag) {
+  let h = 0;
+  for (const ch of String(tag).toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return h;
+}
+function fmtMin(m) {
+  if (!m) return "";
+  if (m < 60) return m + " min";
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? h + " h " + r + " min" : h + " h";
+}
+function norm(r) {
+  return {
+    id: String(r.id),
+    title: String(r.title || ""),
+    tags: parseTags(r.tags),
+    servings: toInt(r.servings),
+    prep: toInt(r.prepMin),
+    cook: toInt(r.cookMin),
+    ingredients: lines(r.ingredients),
+    steps: lines(r.steps),
+    notes: String(r.notes || ""),
+    addedBy: String(r.addedBy || ""),
+    fav: String(r.favorite).toLowerCase() === "true",
+    updated: String(r.updated || "")
+  };
+}
+function toPayload(r) {
+  return {
+    id: r.id, title: r.title, tags: r.tags.join(", "),
+    servings: r.servings || "", prepMin: r.prep || "", cookMin: r.cook || "",
+    ingredients: r.ingredients.join("\n"), steps: r.steps.join("\n"),
+    notes: r.notes, addedBy: r.addedBy, favorite: String(!!r.fav)
+  };
+}
+function errMsg(e) {
+  const m = e && e.message;
+  if (m === "missing_title") return "Add a title first.";
+  return "Couldn’t reach the recipe sheet. Check your connection and try again.";
+}
+function toast(msg) {
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const t = el("div", { class: "toast", role: "status" }, msg);
+  document.body.append(t);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.remove(), 2800);
+}
+
+/* ---------- ingredient scaling ---------- */
+function fracVal(t) { const p = t.split("/"); return parseFloat(p[0]) / parseFloat(p[1]); }
+function qtyToNum(t) {
+  t = t.trim();
+  if (/\s/.test(t)) { const p = t.split(/\s+/); return parseFloat(p[0]) + fracVal(p[1]); }
+  if (t.includes("/")) return fracVal(t);
+  return parseFloat(t);
+}
+function fmtQty(n) {
+  if (n < 0.1) return String(Math.round(n * 100) / 100);
+  const marks = [[0, ""], [1/8, "1/8"], [1/4, "1/4"], [1/3, "1/3"], [3/8, "3/8"], [1/2, "1/2"], [5/8, "5/8"], [2/3, "2/3"], [3/4, "3/4"], [7/8, "7/8"], [1, ""]];
+  let whole = Math.floor(n + 1e-9);
+  const frac = n - whole;
+  let best = null;
+  for (const m of marks) if (Math.abs(frac - m[0]) < 0.04 && (!best || Math.abs(frac - m[0]) < Math.abs(frac - best[0]))) best = m;
+  if (!best) return String(Math.round(n * 10) / 10);
+  if (best[0] === 1) whole += 1;
+  const f = best[1];
+  if (whole > 0 && f) return whole + " " + f;
+  if (whole > 0) return String(whole);
+  return f || "0";
+}
+function scaleLine(line, factor) {
+  if (factor === 1) return line;
+  const s = line.replace(/½/g, " 1/2").replace(/¼/g, " 1/4").replace(/¾/g, " 3/4").replace(/⅓/g, " 1/3").replace(/⅔/g, " 2/3");
+  const m = s.match(/^\s*(\d+\s+\d+\/\d+|\d+\/\d+|\d*\.\d+|\d+)(?![\d/])(.*)$/);
+  if (!m) return line;
+  if (/^\s*[-–to]+\s*\d/.test(m[2]) && /^\s*[-–]/.test(m[2])) return line; // ranges like 2-3
+  const n = qtyToNum(m[1]);
+  if (!isFinite(n)) return line;
+  return fmtQty(n * factor) + m[2];
+}
+function isGroup(line) { return /:\s*$/.test(line); }
+
+/* ---------- api ---------- */
+async function api(action, payload) {
+  const res = await fetch(apiUrl(), {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(Object.assign({ action: action }, payload || {}))
+  });
+  let data;
+  try { data = await res.json(); } catch (e) { throw new Error("bad_response"); }
+  if (!data.ok) throw new Error(data.error || "error");
+  return data;
+}
+function setRecipes(list) {
+  S.recipes = list.map(norm);
+  S.loaded = true;
+  S.lastLoad = Date.now();
+  store.set(LS.cache, JSON.stringify(list));
+}
+async function load(silent) {
+  S.loading = true;
+  if (!silent && currentView === "list") paintList();
+  try {
+    const d = await api("list");
+    setRecipes(d.recipes);
+    S.error = "";
+  } catch (e) {
+    S.error = errMsg(e);
+  }
+  S.loading = false;
+  if (currentView === "list") paintList();
+  else if (currentView !== "form") route();
+}
+function signOut(msg) {
+  store.del(LS.name); store.del(LS.cache);
+  if (!HARDCODED_API_URL) store.del(LS.url);
+  S.recipes = []; S.loaded = false; S.loading = false; S.error = ""; S.gateMsg = msg || "";
+  if (location.hash) location.hash = ""; else route();
+}
+
+/* ---------- views ---------- */
+function show(node, name) {
+  const same = currentView === name;
+  const y = same ? window.scrollY : 0;
+  currentView = name;
+  $app.replaceChildren(node);
+  window.scrollTo(0, y);
+}
+
+function viewGate() {
+  const needUrl = !HARDCODED_API_URL;
+  const url = el("input", { class: "input", type: "url", placeholder: "https://script.google.com/macros/s/…/exec", value: store.get(LS.url) || "", autocomplete: "off", "aria-label": "Web app URL" });
+  const err = el("p", { class: "err", role: "alert" }, S.gateMsg);
+  S.gateMsg = "";
+  const btn = el("button", { class: "btn primary wide", type: "submit" }, "Open My Recipe Book");
+  const form = el("form", {
+    class: "gate",
+    onsubmit: async ev => {
+      ev.preventDefault();
+      const u = needUrl ? url.value.trim() : "";
+      if (needUrl && !/^https:\/\/script\.google\.com\/.+\/exec/.test(u)) { err.textContent = "Paste the web app URL that ends in /exec."; return; }
+      if (needUrl) store.set(LS.url, u);
+      btn.disabled = true; btn.textContent = "Checking…";
+      S.loaded = false;
+      await load(false);
+    }
+  },
+    el("h1", null, "My Recipe Book"),
+    el("p", { class: "lead" }, "Shared recipes for the family."),
+    needUrl && el("div", { class: "field" }, url),
+    err, btn
+  );
+  return form;
+}
+
+function viewList() {
+  const q = el("input", { class: "input", type: "search", placeholder: "Search by name, tag or ingredient", value: S.q, "aria-label": "Search recipes",
+    oninput: ev => { S.q = ev.target.value; paintList(); } });
+  const wrap = el("div", { class: "wrap" },
+    el("div", { class: "top" },
+      el("div", null, el("h1", null, "My Recipe Book"), el("div", { class: "sub", id: "count" })),
+      el("div", { class: "actions" },
+        el("button", { class: "linkbtn", type: "button", onclick: () => load(false) }, "Refresh")
+      )
+    ),
+    q,
+    el("div", { class: "chips", id: "chips" }),
+    el("div", { id: "status" }),
+    el("div", { class: "grid", id: "grid" }),
+    el("a", { class: "fab", href: "#/new" }, "Add recipe")
+  );
+  return wrap;
+}
+
+function paintList() {
+  const chips = document.getElementById("chips");
+  const grid = document.getElementById("grid");
+  const status = document.getElementById("status");
+  const count = document.getElementById("count");
+  if (!chips || !grid) return;
+
+  // tag counts
+  const counts = new Map();
+  S.recipes.forEach(r => r.tags.forEach(t => { const k = t.toLowerCase(); counts.set(k, (counts.get(k) || { name: t, n: 0 })); counts.get(k).n++; }));
+  const tagList = [...counts.entries()].sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0]));
+  if (S.tag && !counts.has(S.tag)) S.tag = "";
+  const hasFav = S.recipes.some(r => r.fav);
+  if (S.fav && !hasFav) S.fav = false;
+
+  const chipBtn = (label, pressed, fn) => el("button", { class: "chip", type: "button", "aria-pressed": String(pressed), onclick: fn }, label);
+  chips.replaceChildren(
+    chipBtn("All", !S.tag && !S.fav, () => { S.tag = ""; S.fav = false; paintList(); }),
+    ...(hasFav ? [chipBtn("★ Favorites", S.fav, () => { S.fav = !S.fav; S.tag = ""; paintList(); })] : []),
+    ...tagList.map(([k, v]) => chipBtn(v.name, S.tag === k, () => { S.tag = S.tag === k ? "" : k; S.fav = false; paintList(); }))
+  );
+
+  const needle = S.q.trim().toLowerCase();
+  const items = S.recipes.filter(r => {
+    if (S.fav && !r.fav) return false;
+    if (S.tag && !r.tags.some(t => t.toLowerCase() === S.tag)) return false;
+    if (!needle) return true;
+    return (r.title + " " + r.tags.join(" ") + " " + r.ingredients.join(" ")).toLowerCase().includes(needle);
+  }).sort((a, b) => a.title.localeCompare(b.title));
+
+  count.textContent = S.loading && S.loaded ? "Updating…" : S.recipes.length + (S.recipes.length === 1 ? " recipe" : " recipes");
+
+  const st = [];
+  if (S.error) st.push(el("div", { class: "banner", role: "alert" }, el("span", null, S.error), el("button", { type: "button", onclick: () => load(false) }, "Retry")));
+  if (S.loading && !S.loaded) st.push(el("div", { class: "empty" }, "Loading recipes…"));
+  else if (!S.recipes.length && !S.error) st.push(el("div", { class: "empty" }, el("b", null, "No recipes yet"), "Tap Add recipe to save your first one."));
+  else if (!items.length && S.recipes.length) st.push(el("div", { class: "empty" }, el("b", null, "Nothing matches"), "Try a different search or clear the filter."));
+  status.replaceChildren(...st);
+
+  grid.replaceChildren(...items.map(card));
+}
+
+function card(r) {
+  const meta = [];
+  const total = r.prep + r.cook;
+  if (total) meta.push(el("span", null, fmtMin(total)));
+  if (r.servings) meta.push(el("span", null, "Serves " + r.servings));
+  return el("a", { class: "card", href: "#/r/" + encodeURIComponent(r.id), style: r.tags[0] ? "--h:" + hue(r.tags[0]) : "" },
+    r.fav && el("span", { class: "star", "aria-label": "Favorite" }, "★"),
+    el("h3", null, r.title),
+    meta.length && el("div", { class: "meta" }, meta),
+    r.tags.length && el("div", { class: "tags" }, r.tags.map(t => el("span", { class: "tag", style: "--h:" + hue(t) }, t)))
+  );
+}
+
+function viewMissing() {
+  return el("div", { class: "wrap" },
+    el("a", { class: "back", href: "#/" }, "Back to recipes"),
+    el("div", { class: "empty" }, S.loaded
+      ? [el("b", null, "Recipe not found"), "It may have been deleted."]
+      : "Loading recipe…")
+  );
+}
+
+function viewDetail(id) {
+  const r = S.recipes.find(x => x.id === id);
+  if (!r) return viewMissing();
+  const base = r.servings;
+  let cur = S.scale[id] || base;
+
+  const ing = el("ul", { class: "ing" });
+  const num = el("b", null, String(cur));
+  const minus = el("button", { type: "button", "aria-label": "Fewer servings" }, "−");
+  const plus = el("button", { type: "button", "aria-label": "More servings" }, "+");
+  function paintIng() {
+    const f = base ? cur / base : 1;
+    num.textContent = String(cur);
+    minus.disabled = cur <= 1;
+    ing.replaceChildren(...r.ingredients.map(line =>
+      isGroup(line) ? el("li", { class: "grp" }, line.replace(/:\s*$/, "")) : el("li", null, scaleLine(line, f))));
+  }
+  minus.addEventListener("click", () => { if (cur > 1) { cur--; S.scale[id] = cur; paintIng(); } });
+  plus.addEventListener("click", () => { cur++; S.scale[id] = cur; paintIng(); });
+
+  const favBtn = el("button", { class: "btn", type: "button" });
+  function paintFav() { favBtn.textContent = r.fav ? "★ Favorite" : "☆ Add to favorites"; }
+  favBtn.addEventListener("click", async () => {
+    const next = !r.fav; r.fav = next; paintFav();
+    try { const d = await api("save", { recipe: toPayload(r) }); setRecipes(d.recipes); }
+    catch (e) { r.fav = !next; paintFav(); toast(errMsg(e)); }
+  });
+  paintFav();
+
+  let armed = false, timer = null;
+  const del = el("button", { class: "btn danger", type: "button" }, "Delete");
+  del.addEventListener("click", async () => {
+    if (!armed) {
+      armed = true; del.textContent = "Tap again to delete";
+      timer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 4000);
+      return;
+    }
+    clearTimeout(timer); del.disabled = true; del.textContent = "Deleting…";
+    try { const d = await api("delete", { id: r.id }); setRecipes(d.recipes); toast("Deleted"); location.hash = "#/"; }
+    catch (e) { armed = false; del.disabled = false; del.textContent = "Delete"; toast(errMsg(e)); }
+  });
+
+  const facts = [];
+  if (r.prep) facts.push(el("span", null, "Prep " + fmtMin(r.prep)));
+  if (r.cook) facts.push(el("span", null, "Cook " + fmtMin(r.cook)));
+  if (base) facts.push(el("span", { class: "stepper" }, "Serves", minus, num, plus));
+
+  const node = el("div", { class: "wrap detail" },
+    el("a", { class: "back", href: "#/" }, "Back to recipes"),
+    el("h1", null, r.title),
+    facts.length && el("div", { class: "facts" }, facts),
+    r.tags.length && el("div", { class: "tags" }, r.tags.map(t => el("span", { class: "tag", style: "--h:" + hue(t) }, t))),
+    el("div", { class: "cols" },
+      el("section", null, el("h2", null, "Ingredients"),
+        r.ingredients.length ? ing : el("p", { class: "hint" }, "No ingredients listed.")),
+      el("section", null, el("h2", null, "Method"),
+        r.steps.length ? el("ol", { class: "steps" }, r.steps.map(s => el("li", null, s))) : el("p", { class: "hint" }, "No steps listed."))
+    ),
+    r.notes && el("div", { class: "notes" }, r.notes),
+    r.addedBy && el("p", { class: "credit" }, "Added by " + r.addedBy),
+    el("div", { class: "btnrow" },
+      el("a", { class: "btn primary", href: "#/edit/" + encodeURIComponent(r.id), style: "text-decoration:none" }, "Edit"),
+      favBtn, del)
+  );
+  paintIng();
+  return node;
+}
+
+function viewForm(r) {
+  const isNew = !r;
+  const d = r || { id: "", title: "", tags: [], servings: 0, prep: 0, cook: 0, ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "", fav: false };
+
+  const title = el("input", { class: "input", type: "text", value: d.title, maxlength: "200", autocomplete: "off", id: "f-title" });
+  const titleErr = el("div", { class: "fielderr", role: "alert" });
+  const tags = el("input", { class: "input", type: "text", value: d.tags.join(", "), autocomplete: "off", id: "f-tags", placeholder: "dinner, vegetarian" });
+  const serv = el("input", { class: "input", type: "number", inputmode: "numeric", min: "1", value: d.servings || "", id: "f-serv" });
+  const prep = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.prep || "", id: "f-prep" });
+  const cook = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.cook || "", id: "f-cook" });
+  const ing = el("textarea", { class: "textarea", rows: "9", id: "f-ing", placeholder: "2 cups flour\n1 1/2 tsp salt\nFor the sauce:\n3 tomatoes" }, d.ingredients.join("\n"));
+  const steps = el("textarea", { class: "textarea", rows: "9", id: "f-steps", placeholder: "Heat the oven to 200°C.\nMix the dry ingredients." }, d.steps.join("\n"));
+  const notes = el("textarea", { class: "textarea", rows: "3", id: "f-notes" }, d.notes);
+  const who = el("input", { class: "input", type: "text", value: d.addedBy, maxlength: "60", autocomplete: "given-name", id: "f-who" });
+  const whoErr = el("div", { class: "fielderr", role: "alert" });
+
+  const existing = new Map();
+  S.recipes.forEach(x => x.tags.forEach(t => { if (!existing.has(t.toLowerCase())) existing.set(t.toLowerCase(), t); }));
+  const pick = el("div", { class: "pick" }, [...existing.values()].sort().map(t =>
+    el("button", { type: "button", onclick: () => {
+      const cur = parseTags(tags.value);
+      if (!cur.some(c => c.toLowerCase() === t.toLowerCase())) cur.push(t);
+      tags.value = cur.join(", ");
+    } }, "+ " + t)));
+
+  const save = el("button", { class: "btn primary", type: "submit" }, isNew ? "Save recipe" : "Save changes");
+  const form = el("form", {
+    class: "wrap form",
+    onsubmit: async ev => {
+      ev.preventDefault();
+      titleErr.textContent = ""; whoErr.textContent = "";
+      if (!title.value.trim()) { titleErr.textContent = "Add a title."; title.focus(); return; }
+      if (!who.value.trim()) { whoErr.textContent = "Enter your name."; who.focus(); return; }
+      store.set(LS.name, who.value.trim());
+      const rec = {
+        id: d.id, title: title.value.trim(), tags: parseTags(tags.value),
+        servings: toInt(serv.value), prep: toInt(prep.value), cook: toInt(cook.value),
+        ingredients: lines(ing.value), steps: lines(steps.value), notes: notes.value.trim(),
+        addedBy: who.value.trim(), fav: d.fav
+      };
+      save.disabled = true; save.textContent = "Saving…";
+      try {
+        const res = await api("save", { recipe: toPayload(rec) });
+        setRecipes(res.recipes);
+        toast("Saved");
+        location.hash = "#/r/" + encodeURIComponent(res.savedId);
+      } catch (e) {
+        save.disabled = false; save.textContent = isNew ? "Save recipe" : "Save changes";
+        toast(errMsg(e));
+      }
+    }
+  },
+    el("a", { class: "back", href: isNew ? "#/" : "#/r/" + encodeURIComponent(d.id) }, "Cancel"),
+    el("h1", null, isNew ? "New recipe" : "Edit recipe"),
+    el("div", { class: "field" }, el("label", { for: "f-title" }, "Title"), title, titleErr),
+    el("div", { class: "field" }, el("label", { for: "f-tags" }, "Tags"), tags,
+      el("div", { class: "hint" }, "Separate with commas."), existing.size ? pick : null),
+    el("div", { class: "row3 field" },
+      el("div", null, el("label", { for: "f-serv" }, "Servings"), serv),
+      el("div", null, el("label", { for: "f-prep" }, "Prep (min)"), prep),
+      el("div", null, el("label", { for: "f-cook" }, "Cook (min)"), cook)),
+    el("div", { class: "field" }, el("label", { for: "f-ing" }, "Ingredients"), ing,
+      el("div", { class: "hint" }, "One per line. End a line with a colon to start a group, like “For the sauce:”. Start lines with a number so servings can scale.")),
+    el("div", { class: "field" }, el("label", { for: "f-steps" }, "Method"), steps,
+      el("div", { class: "hint" }, "One step per line.")),
+    el("div", { class: "field" }, el("label", { for: "f-notes" }, "Notes"), notes),
+    el("div", { class: "field" }, el("label", { for: "f-who" }, "Your name"), who, whoErr,
+      el("div", { class: "hint" }, "Shown on the recipe as “Added by”.")),
+    el("div", { class: "btnrow" }, save)
+  );
+  return form;
+}
+
+/* ---------- routing ---------- */
+function route() {
+  if (!apiUrl()) return show(viewGate(), "gate");
+  const parts = location.hash.replace(/^#\/?/, "").split("/");
+  const a = parts[0], b = parts[1] ? decodeURIComponent(parts[1]) : "";
+  if (a === "r" && b) return show(viewDetail(b), "detail");
+  if (a === "new") return show(viewForm(null), "form");
+  if (a === "edit" && b) {
+    const r = S.recipes.find(x => x.id === b);
+    return r ? show(viewForm(r), "form") : show(viewMissing(), "detail");
+  }
+  show(viewList(), "list");
+  paintList();
+}
+
+/* ---------- start ---------- */
+try {
+  const c = JSON.parse(store.get(LS.cache) || "null");
+  if (Array.isArray(c)) { S.recipes = c.map(norm); S.loaded = true; }
+} catch (e) {}
+window.addEventListener("hashchange", route);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && Date.now() - S.lastLoad > 60000 && currentView !== "form") load(true);
+});
+route();
+if (apiUrl()) load(true);
+})();
+</script>
+</body>
+</html>
