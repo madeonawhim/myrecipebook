@@ -100,8 +100,8 @@ a{color:inherit}
 .cols{display:grid;gap:28px;margin-top:22px}
 @media (min-width:760px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1.7fr)}}
 .cols h2{font-size:1.35rem;margin-bottom:10px}
-.sub{font-size:1.1rem;margin:20px 0 8px}
-.ingbox > div:first-child > .sub,.cols section > div > div:first-child > .sub{margin-top:0}
+.subhead{font-size:1.1rem;margin:20px 0 8px}
+.ingbox > div:first-child > .subhead,.cols section > div > div:first-child > .subhead{margin-top:0}
 .ing{padding-left:1.5em;margin:0}
 .ing li{padding:8px 0 8px 4px;border-bottom:1px solid var(--line)}
 .steps{padding-left:1.3em;margin:0}
@@ -117,6 +117,19 @@ a{color:inherit}
 .datechips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .datechip{display:inline-flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 12px;font-size:.9rem}
 .datechip button{border:0;background:none;color:var(--muted);font-size:1.1rem;line-height:1;padding:2px 8px}
+.searchrow{display:flex;gap:10px}
+.searchrow .input{flex:1;min-width:0}
+.searchrow .who{flex:0 0 auto;width:auto;max-width:46%}
+.cardimg{margin:-16px -16px 12px -22px;height:150px;background:var(--line)}
+.cardimg img{width:100%;height:100%;object-fit:cover;display:block}
+.card .star{background:var(--surface);border-radius:999px;padding:0 7px;line-height:1.6;z-index:1}
+.gallery{display:flex;gap:10px;overflow-x:auto;margin:16px 0 4px}
+.gallery img{height:240px;max-width:85vw;width:auto;border-radius:12px;display:block;background:var(--line)}
+.photobox{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.ph{position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;background:var(--line)}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;line-height:1}
+.phmsg{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);color:#fff;font-size:.72rem;text-align:center;padding:2px}
 .hist{margin-top:26px}
 .hist h2{font-size:1.35rem;margin-bottom:10px}
 .dates{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
@@ -166,7 +179,7 @@ const store = {
 };
 
 /* ---------- state ---------- */
-const S = { recipes: [], loaded: false, loading: false, error: "", q: "", tag: "", fav: false, scale: {}, lastLoad: 0, gateMsg: "" };
+const S = { recipes: [], loaded: false, loading: false, error: "", q: "", tag: "", who: "", fav: false, scale: {}, lastLoad: 0, gateMsg: "" };
 let currentView = "";
 let toastTimer = null;
 
@@ -217,6 +230,38 @@ function fmtMin(m) {
   const h = Math.floor(m / 60), r = m % 60;
   return r ? h + " h " + r + " min" : h + " h";
 }
+function photoUrl(id, w) { return "https://drive.google.com/thumbnail?id=" + encodeURIComponent(id) + "&sz=w" + (w || 800); }
+function parsePhotos(s) {
+  const seen = new Set();
+  String(s == null ? "" : s).split(/[,;\s]+/).forEach(x => { if (/^[\w-]{10,}$/.test(x)) seen.add(x); });
+  return [...seen].slice(0, 5);
+}
+function resizeImage(file, max) {
+  max = max || 1400;
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * s)); c.height = Math.max(1, Math.round(img.height * s));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad_image")); };
+    img.src = url;
+  });
+}
+function parseNames(s) {
+  const seen = new Set(), out = [];
+  String(s == null ? "" : s).split(",").map(x => x.trim()).filter(Boolean).forEach(n => {
+    const k = n.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(n); }
+  });
+  return out;
+}
+function me() { return store.get(LS.name) || ""; }
+function isFav(r) { const m = me().toLowerCase(); return !!m && r.favs.some(n => n.toLowerCase() === m); }
 function parseDates(s) {
   const seen = new Set();
   String(s == null ? "" : s).split(/[,;\s]+/).forEach(x => { if (isoDate(x)) seen.add(x); });
@@ -244,9 +289,10 @@ function norm(r) {
     steps: lines(r.steps),
     notes: String(r.notes || ""),
     addedBy: String(r.addedBy || ""),
-    fav: String(r.favorite).toLowerCase() === "true",
+    favs: parseNames(r.favoritedBy),
     updated: String(r.updated || ""),
-    prepared: parseDates(r.prepared)
+    prepared: parseDates(r.prepared),
+    photos: parsePhotos(r.photos)
   };
 }
 function toPayload(r) {
@@ -254,12 +300,14 @@ function toPayload(r) {
     id: r.id, title: r.title, tags: r.tags.join(", "),
     servings: r.servings ? r.servings + (r.unit ? " " + r.unit : "") : "", prepMin: r.prep || "", cookMin: r.cook || "",
     ingredients: r.ingredients.join("\n"), steps: r.steps.join("\n"),
-    notes: r.notes, addedBy: r.addedBy, favorite: String(!!r.fav), prepared: (r.prepared || []).join(", ")
+    notes: r.notes, addedBy: r.addedBy, prepared: (r.prepared || []).join(", "), photos: (r.photos || []).join(",")
   };
 }
 function errMsg(e) {
   const m = e && e.message;
   if (m === "missing_title") return "Add a title first.";
+  if (m === "missing_name") return "Enter your name.";
+  if (m === "not_found") return "That recipe no longer exists. Reload the page.";
   if (m === "wrong_passcode") return "That passcode is wrong.";
   if (m === "bad_response") return "The script answered, but not with recipe data. Check that access is set to Anyone and the URL ends in /exec.";
   return "Couldn’t reach the recipe sheet (" + (m || "unknown error") + "). Check your connection and try again.";
@@ -392,13 +440,15 @@ function viewGate() {
 }
 
 function viewList() {
-  const q = el("input", { class: "input", type: "search", placeholder: "Search by name, tag or ingredient", value: S.q, "aria-label": "Search recipes",
+  const q = el("input", { class: "input", type: "search", placeholder: "Search recipes", value: S.q, "aria-label": "Search recipes",
     oninput: ev => { S.q = ev.target.value; paintList(); } });
+  const who = el("select", { class: "input who", id: "who", "aria-label": "Filter by who added the recipe",
+    onchange: ev => { S.who = ev.target.value; paintList(); } });
   const wrap = el("div", { class: "wrap" },
     el("div", { class: "top" },
       el("div", null, el("h1", null, "My Recipe Book"), el("div", { class: "sub", id: "count" }))
     ),
-    q,
+    el("div", { class: "searchrow" }, q, who),
     el("div", { class: "chips", id: "chips" }),
     el("div", { id: "status" }),
     el("div", { class: "grid", id: "grid" }),
@@ -419,19 +469,37 @@ function paintList() {
   S.recipes.forEach(r => r.tags.forEach(t => { const k = t.toLowerCase(); counts.set(k, (counts.get(k) || { name: t, n: 0 })); counts.get(k).n++; }));
   const tagList = [...counts.entries()].sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0]));
   if (S.tag && !counts.has(S.tag)) S.tag = "";
-  const hasFav = S.recipes.some(r => r.fav);
+  const hasFav = S.recipes.some(isFav);
   if (S.fav && !hasFav) S.fav = false;
+
+  // people who added recipes
+  const names = new Map();
+  S.recipes.forEach(r => {
+    const n = r.addedBy.trim(); if (!n) return;
+    const k = n.toLowerCase();
+    if (!names.has(k)) names.set(k, { name: n, n: 0 });
+    names.get(k).n++;
+  });
+  if (S.who && !names.has(S.who)) S.who = "";
+  const sel = document.getElementById("who");
+  if (sel) {
+    sel.hidden = names.size < 2;
+    sel.replaceChildren(el("option", { value: "" }, "Added by: anyone"),
+      ...[...names.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([k, v]) => el("option", { value: k }, v.name + " (" + v.n + ")")));
+    sel.value = S.who;
+  }
 
   const chipBtn = (label, pressed, fn) => el("button", { class: "chip", type: "button", "aria-pressed": String(pressed), onclick: fn }, label);
   chips.replaceChildren(
     chipBtn("All", !S.tag && !S.fav, () => { S.tag = ""; S.fav = false; paintList(); }),
-    ...(hasFav ? [chipBtn("★ Favorites", S.fav, () => { S.fav = !S.fav; S.tag = ""; paintList(); })] : []),
+    ...(hasFav ? [chipBtn("★ My favorites", S.fav, () => { S.fav = !S.fav; S.tag = ""; paintList(); })] : []),
     ...tagList.map(([k, v]) => chipBtn(v.name, S.tag === k, () => { S.tag = S.tag === k ? "" : k; S.fav = false; paintList(); }))
   );
 
   const needle = S.q.trim().toLowerCase();
   const items = S.recipes.filter(r => {
-    if (S.fav && !r.fav) return false;
+    if (S.fav && !isFav(r)) return false;
+    if (S.who && r.addedBy.trim().toLowerCase() !== S.who) return false;
     if (S.tag && !r.tags.some(t => t.toLowerCase() === S.tag)) return false;
     if (!needle) return true;
     return (r.title + " " + r.tags.join(" ") + " " + r.ingredients.join(" ")).toLowerCase().includes(needle);
@@ -455,7 +523,8 @@ function card(r) {
   if (total) meta.push(el("span", null, fmtMin(total)));
   if (r.servings) meta.push(el("span", null, r.unit ? "Makes " + r.servings + " " + r.unit : "Serves " + r.servings));
   return el("a", { class: "card", href: "#/r/" + encodeURIComponent(r.id), style: r.tags[0] ? "--h:" + hue(r.tags[0]) : "" },
-    r.fav && el("span", { class: "star", "aria-label": "Favorite" }, "★"),
+    r.photos.length && el("div", { class: "cardimg" }, el("img", { src: photoUrl(r.photos[0], 480), alt: "", loading: "lazy", onerror: ev => { const p = ev.target.parentNode; if (p) p.remove(); } })),
+    isFav(r) && el("span", { class: "star", "aria-label": "In your favorites" }, "★"),
     el("h3", null, r.title),
     meta.length && el("div", { class: "meta" }, meta),
     r.tags.length && el("div", { class: "tags" }, r.tags.map(t => el("span", { class: "tag", style: "--h:" + hue(t) }, t)))
@@ -486,19 +555,44 @@ function viewDetail(id) {
     num.textContent = String(cur);
     minus.disabled = cur <= 1;
     ing.replaceChildren(...groupLines(r.ingredients).map(g => el("div", null,
-      g.title && el("h3", { class: "sub" }, g.title),
+      g.title && el("h3", { class: "subhead" }, g.title),
       g.items.length ? el("ol", { class: "ing" }, g.items.map(x => el("li", null, scaleLine(x, f)))) : null)));
   }
   minus.addEventListener("click", () => { if (cur > 1) { cur--; S.scale[id] = cur; paintIng(); } });
   plus.addEventListener("click", () => { cur++; S.scale[id] = cur; paintIng(); });
 
   const favBtn = el("button", { class: "btn", type: "button" });
-  function paintFav() { favBtn.textContent = r.fav ? "★ Favorite" : "☆ Add to favorites"; }
+  function paintFav() { favBtn.textContent = isFav(r) ? "★ In my favorites" : "☆ Add to favorites"; }
+  const favName = el("input", { class: "input", type: "text", maxlength: "40", value: me(), autocomplete: "given-name", placeholder: "Your name", "aria-label": "Your name" });
+  const favErr = el("div", { class: "fielderr", role: "alert" });
+  const favGo = el("button", { class: "btn primary", type: "submit" }, "Add to favorites");
+  const favCancel = el("button", { class: "btn", type: "button" }, "Cancel");
+  const favPanel = el("form", {
+    class: "delpanel", hidden: true,
+    onsubmit: async ev => {
+      ev.preventDefault();
+      favErr.textContent = "";
+      const name = favName.value.replace(/[,;|]/g, " ").replace(/\s+/g, " ").trim();
+      if (!name) { favErr.textContent = "Enter your name."; favName.focus(); return; }
+      favGo.disabled = true; favGo.textContent = "Saving…";
+      try {
+        const d = await api("favorite", { id: r.id, name: name, on: true });
+        store.set(LS.name, name); setRecipes(d.recipes); toast("Added to favorites"); route();
+      } catch (e) { favGo.disabled = false; favGo.textContent = "Add to favorites"; favErr.textContent = errMsg(e); }
+    }
+  },
+    el("p", { class: "hint" }, "Whose favorite is this? Enter your name."),
+    favName, favErr,
+    el("div", { class: "btnrow tight" }, favGo, favCancel)
+  );
   favBtn.addEventListener("click", async () => {
-    const next = !r.fav; r.fav = next; paintFav();
-    try { const d = await api("save", { recipe: toPayload(r) }); setRecipes(d.recipes); }
-    catch (e) { r.fav = !next; paintFav(); toast(errMsg(e)); }
+    if (isFav(r)) {
+      favBtn.disabled = true;
+      try { const d = await api("favorite", { id: r.id, name: me(), on: false }); setRecipes(d.recipes); toast("Removed from favorites"); route(); }
+      catch (e) { favBtn.disabled = false; toast(errMsg(e)); }
+    } else { favPanel.hidden = false; favBtn.hidden = true; favName.focus(); }
   });
+  favCancel.addEventListener("click", () => { favPanel.hidden = true; favBtn.hidden = false; favErr.textContent = ""; });
   paintFav();
 
   const todayISO = localISO(new Date());
@@ -556,20 +650,24 @@ function viewDetail(id) {
     el("h1", null, r.title),
     facts.length && el("div", { class: "facts" }, facts),
     r.tags.length && el("div", { class: "tags" }, r.tags.map(t => el("span", { class: "tag", style: "--h:" + hue(t) }, t))),
+    r.photos.length && el("div", { class: "gallery" }, r.photos.map(id =>
+      el("a", { href: photoUrl(id, 2000), target: "_blank", rel: "noopener" }, el("img", { src: photoUrl(id, 900), alt: "Photo of " + r.title, loading: "lazy" })))),
     el("div", { class: "cols" },
       el("section", null, el("h2", null, "Ingredients"),
         r.ingredients.length ? ing : el("p", { class: "hint" }, "No ingredients listed.")),
       el("section", null, el("h2", null, "Method"),
         r.steps.length ? el("div", null, groupLines(r.steps).map(g => el("div", null,
-          g.title && el("h3", { class: "sub" }, g.title),
+          g.title && el("h3", { class: "subhead" }, g.title),
           g.items.length ? el("ol", { class: "steps" }, g.items.map(s => el("li", null, s))) : null))) : el("p", { class: "hint" }, "No steps listed."))
     ),
     hist,
     r.notes && el("div", { class: "notes" }, r.notes),
     r.addedBy && el("p", { class: "credit" }, "Added by " + r.addedBy),
+    r.favs.length && el("p", { class: "credit" }, "Favorite of " + r.favs.join(", ")),
     el("div", { class: "btnrow" },
       el("a", { class: "btn primary", href: "#/edit/" + encodeURIComponent(r.id), style: "text-decoration:none" }, "Edit"),
       favBtn, madeBtn, del),
+    favPanel,
     delPanel
   );
   paintIng();
@@ -578,7 +676,7 @@ function viewDetail(id) {
 
 function viewForm(r) {
   const isNew = !r;
-  const d = r || { id: "", title: "", tags: [], servings: 0, unit: "", prep: 0, cook: 0, prepared: [], ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "", fav: false };
+  const d = r || { id: "", title: "", tags: [], servings: 0, unit: "", prep: 0, cook: 0, prepared: [], photos: [], ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "" };
 
   const title = el("input", { class: "input", type: "text", value: d.title, maxlength: "200", autocomplete: "off", id: "f-title" });
   const titleErr = el("div", { class: "fielderr", role: "alert" });
@@ -598,6 +696,42 @@ function viewForm(r) {
   const addBtn = el("button", { class: "btn", type: "button", onclick: () => addDate(prepared.value) }, "Add date");
   const todayBtn = el("button", { class: "btn", type: "button", onclick: () => addDate(localISO(new Date())) }, "Today");
   paintDates();
+
+  // photos: shrink in the browser, upload to Drive through the script, keep only the file ids
+  let photos = (d.photos || []).map(id => ({ id: id, state: "done", fresh: false, src: "" }));
+  const photoBox = el("div", { class: "photobox" });
+  const fileIn = el("input", { type: "file", accept: "image/*", multiple: true, hidden: true, "aria-label": "Choose photos" });
+  const addPhotoBtn = el("button", { class: "btn", type: "button", onclick: () => fileIn.click() }, "Add photo");
+  function paintPhotos() {
+    photoBox.replaceChildren(...photos.map(p => el("div", { class: "ph" },
+      el("img", { src: p.src || photoUrl(p.id, 200), alt: "" }),
+      p.state === "uploading" && el("span", { class: "phmsg" }, "Uploading…"),
+      el("button", { type: "button", "aria-label": "Remove photo", onclick: () => removePhoto(p) }, "×"))));
+    addPhotoBtn.disabled = photos.length >= 5;
+  }
+  function removePhoto(p) {
+    photos = photos.filter(x => x !== p);
+    if (p.fresh && p.id) api("deletePhoto", { fileId: p.id }).catch(() => {});
+    paintPhotos();
+  }
+  async function addFiles(files) {
+    for (const f of files) {
+      if (photos.length >= 5) { toast("Up to 5 photos per recipe."); break; }
+      const p = { id: "", state: "uploading", fresh: true, src: "" };
+      photos.push(p); paintPhotos();
+      try {
+        p.src = await resizeImage(f); paintPhotos();
+        const res = await api("uploadPhoto", { data: p.src.split(",")[1], mime: "image/jpeg" });
+        p.id = res.fileId; p.state = "done";
+      } catch (e) {
+        photos = photos.filter(x => x !== p);
+        toast(e.message === "bad_image" ? "That photo couldn’t be read. Try a JPG or PNG." : "Photo upload failed (" + (e.message || "unknown error") + ").");
+      }
+      paintPhotos();
+    }
+  }
+  fileIn.addEventListener("change", () => { const list = Array.from(fileIn.files); fileIn.value = ""; addFiles(list); });
+  paintPhotos();
   const prep = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.prep || "", id: "f-prep" });
   const cook = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.cook || "", id: "f-cook" });
   const ing = el("textarea", { class: "textarea", rows: "9", id: "f-ing", placeholder: "Popcorn:\n1/2 cup corn kernels\n1 tbsp oil\nCaramel:\n125g butter\n2/3 cup sugar" }, d.ingredients.join("\n"));
@@ -623,13 +757,15 @@ function viewForm(r) {
       titleErr.textContent = ""; whoErr.textContent = "";
       if (!title.value.trim()) { titleErr.textContent = "Add a title."; title.focus(); return; }
       if (!who.value.trim()) { whoErr.textContent = "Enter a name."; who.focus(); return; }
+      if (photos.some(p => p.state === "uploading")) { toast("Wait for the photos to finish uploading."); return; }
       store.set(LS.name, who.value.trim());
       const rec = {
         id: d.id, title: title.value.trim(), tags: parseTags(tags.value),
         servings: toInt(serv.value), unit: toInt(serv.value) ? unit.value.trim() : "", prep: toInt(prep.value), cook: toInt(cook.value),
         prepared: parseDates(dates.concat(isoDate(prepared.value) ? prepared.value : "").join(",")),
+        photos: photos.filter(p => p.id).map(p => p.id),
         ingredients: lines(ing.value), steps: lines(steps.value), notes: notes.value.trim(),
-        addedBy: who.value.trim(), fav: d.fav
+        addedBy: who.value.trim(), favs: d.favs || []
       };
       save.disabled = true; save.textContent = "Saving…";
       try {
@@ -643,7 +779,8 @@ function viewForm(r) {
       }
     }
   },
-    el("a", { class: "back", href: isNew ? "#/" : "#/r/" + encodeURIComponent(d.id) }, "Cancel"),
+    el("a", { class: "back", href: isNew ? "#/" : "#/r/" + encodeURIComponent(d.id),
+      onclick: () => { photos.filter(p => p.fresh && p.id).forEach(p => api("deletePhoto", { fileId: p.id }).catch(() => {})); } }, "Cancel"),
     el("h1", null, isNew ? "New recipe" : "Edit recipe"),
     el("div", { class: "field" }, el("label", { for: "f-title" }, "Title"), title, titleErr),
     el("div", { class: "field" }, el("label", { for: "f-tags" }, "Tags"), tags,
@@ -660,6 +797,10 @@ function viewForm(r) {
       el("div", { class: "datewrap" }, prepared, addBtn, todayBtn),
       chipsBox,
       el("div", { class: "hint" }, "Optional. Add each time you make it. The newest one shows as the last prepared date.")),
+    el("div", { class: "field" }, el("label", null, "Photos"),
+      el("div", { class: "datewrap" }, addPhotoBtn, fileIn),
+      photoBox,
+      el("div", { class: "hint" }, "Up to 5 photos. They’re shrunk before uploading and saved in your Google Drive.")),
     el("div", { class: "field" }, el("label", { for: "f-ing" }, "Ingredients"), ing,
       el("div", { class: "hint" }, "One per line. For a subheading, type it on its own line ending with a colon, like “Popcorn:”. Numbering starts again at 1 under each subheading. Start lines with a number so servings can scale.")),
     el("div", { class: "field" }, el("label", { for: "f-steps" }, "Method"), steps,
