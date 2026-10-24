@@ -111,6 +111,15 @@ a{color:inherit}
 .field{margin-bottom:18px}
 .field label{display:block;font-weight:600;margin-bottom:6px}
 .hint{color:var(--muted);font-size:.88rem;margin-top:5px}
+.datewrap{display:flex;flex-wrap:wrap;gap:10px}
+.datewrap .input{flex:1;min-width:140px}
+.datechips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.datechip{display:inline-flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 12px;font-size:.9rem}
+.datechip button{border:0;background:none;color:var(--muted);font-size:1.1rem;line-height:1;padding:2px 8px}
+.hist{margin-top:26px}
+.hist h2{font-size:1.35rem;margin-bottom:10px}
+.dates{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
+.dates li{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:.92rem}
 .row2{display:grid;grid-template-columns:1fr 2fr;gap:10px}
 .row2.field{grid-template-columns:1fr 1fr}
 .fielderr{color:var(--danger);font-size:.9rem;margin-top:5px}
@@ -207,6 +216,20 @@ function fmtMin(m) {
   const h = Math.floor(m / 60), r = m % 60;
   return r ? h + " h " + r + " min" : h + " h";
 }
+function parseDates(s) {
+  const seen = new Set();
+  String(s == null ? "" : s).split(/[,;\s]+/).forEach(x => { if (isoDate(x)) seen.add(x); });
+  return [...seen].sort();
+}
+function localISO(t) {
+  return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+}
+function isoDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
+function fmtDate(s) {
+  if (!isoDate(s)) return s;
+  const p = s.split("-").map(Number);
+  return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
 function norm(r) {
   return {
     id: String(r.id),
@@ -221,7 +244,8 @@ function norm(r) {
     notes: String(r.notes || ""),
     addedBy: String(r.addedBy || ""),
     fav: String(r.favorite).toLowerCase() === "true",
-    updated: String(r.updated || "")
+    updated: String(r.updated || ""),
+    prepared: parseDates(r.prepared)
   };
 }
 function toPayload(r) {
@@ -229,7 +253,7 @@ function toPayload(r) {
     id: r.id, title: r.title, tags: r.tags.join(", "),
     servings: r.servings ? r.servings + (r.unit ? " " + r.unit : "") : "", prepMin: r.prep || "", cookMin: r.cook || "",
     ingredients: r.ingredients.join("\n"), steps: r.steps.join("\n"),
-    notes: r.notes, addedBy: r.addedBy, favorite: String(!!r.fav)
+    notes: r.notes, addedBy: r.addedBy, favorite: String(!!r.fav), prepared: (r.prepared || []).join(", ")
   };
 }
 function errMsg(e) {
@@ -464,6 +488,22 @@ function viewDetail(id) {
   });
   paintFav();
 
+  const todayISO = localISO(new Date());
+  const madeBtn = el("button", { class: "btn", type: "button" }, "Made it today");
+  madeBtn.disabled = r.prepared.includes(todayISO);
+  madeBtn.addEventListener("click", async () => {
+    madeBtn.disabled = true;
+    const before = r.prepared.slice();
+    r.prepared = parseDates(r.prepared.concat(todayISO).join(","));
+    try {
+      const d = await api("save", { recipe: toPayload(r) });
+      setRecipes(d.recipes); toast("Added today to the history"); route();
+    } catch (e) { r.prepared = before; madeBtn.disabled = false; toast(errMsg(e)); }
+  });
+  const hist = r.prepared.length ? el("section", { class: "hist" },
+    el("h2", null, "Prepared " + r.prepared.length + (r.prepared.length === 1 ? " time" : " times")),
+    el("ul", { class: "dates" }, r.prepared.slice().reverse().map(x => el("li", null, fmtDate(x))))) : null;
+
   const delPass = el("input", { class: "input", type: "password", placeholder: "Delete passcode", autocomplete: "off", "aria-label": "Delete passcode" });
   const delErr = el("div", { class: "fielderr", role: "alert" });
   const delGo = el("button", { class: "btn danger", type: "submit" }, "Delete recipe");
@@ -495,6 +535,7 @@ function viewDetail(id) {
   const facts = [];
   if (r.prep) facts.push(el("span", null, "Prep " + fmtMin(r.prep)));
   if (r.cook) facts.push(el("span", null, "Cook " + fmtMin(r.cook)));
+  if (r.prepared.length) facts.push(el("span", null, "Last prepared " + fmtDate(r.prepared[r.prepared.length - 1])));
   if (base) facts.push(el("span", { class: "stepper" }, r.unit ? "Makes" : "Serves", minus, num, plus, r.unit ? el("span", null, r.unit) : null));
 
   const node = el("div", { class: "wrap detail" },
@@ -508,11 +549,12 @@ function viewDetail(id) {
       el("section", null, el("h2", null, "Method"),
         r.steps.length ? el("ol", { class: "steps" }, r.steps.map(s => el("li", null, s))) : el("p", { class: "hint" }, "No steps listed."))
     ),
+    hist,
     r.notes && el("div", { class: "notes" }, r.notes),
     r.addedBy && el("p", { class: "credit" }, "Added by " + r.addedBy),
     el("div", { class: "btnrow" },
       el("a", { class: "btn primary", href: "#/edit/" + encodeURIComponent(r.id), style: "text-decoration:none" }, "Edit"),
-      favBtn, del),
+      favBtn, madeBtn, del),
     delPanel
   );
   paintIng();
@@ -521,13 +563,26 @@ function viewDetail(id) {
 
 function viewForm(r) {
   const isNew = !r;
-  const d = r || { id: "", title: "", tags: [], servings: 0, unit: "", prep: 0, cook: 0, ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "", fav: false };
+  const d = r || { id: "", title: "", tags: [], servings: 0, unit: "", prep: 0, cook: 0, prepared: [], ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "", fav: false };
 
   const title = el("input", { class: "input", type: "text", value: d.title, maxlength: "200", autocomplete: "off", id: "f-title" });
   const titleErr = el("div", { class: "fielderr", role: "alert" });
   const tags = el("input", { class: "input", type: "text", value: d.tags.join(", "), autocomplete: "off", id: "f-tags", placeholder: "dinner, vegetarian" });
   const serv = el("input", { class: "input", type: "number", inputmode: "numeric", min: "1", value: d.servings || "", id: "f-serv" });
   const unit = el("input", { class: "input", type: "text", value: d.unit, maxlength: "30", autocomplete: "off", id: "f-unit", placeholder: "servings, cookies, loaves…" });
+  let dates = (d.prepared || []).slice();
+  const prepared = el("input", { class: "input", type: "date", id: "f-date", "aria-label": "Pick a date" });
+  const chipsBox = el("div", { class: "datechips" });
+  function paintDates() {
+    dates = parseDates(dates.join(","));
+    chipsBox.replaceChildren(...dates.slice().reverse().map(x =>
+      el("span", { class: "datechip" }, fmtDate(x),
+        el("button", { type: "button", "aria-label": "Remove " + fmtDate(x), onclick: () => { dates = dates.filter(y => y !== x); paintDates(); } }, "×"))));
+  }
+  function addDate(v) { if (isoDate(v)) { dates.push(v); prepared.value = ""; paintDates(); } }
+  const addBtn = el("button", { class: "btn", type: "button", onclick: () => addDate(prepared.value) }, "Add date");
+  const todayBtn = el("button", { class: "btn", type: "button", onclick: () => addDate(localISO(new Date())) }, "Today");
+  paintDates();
   const prep = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.prep || "", id: "f-prep" });
   const cook = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.cook || "", id: "f-cook" });
   const ing = el("textarea", { class: "textarea", rows: "9", id: "f-ing", placeholder: "2 cups flour\n1 1/2 tsp salt\nFor the sauce:\n3 tomatoes" }, d.ingredients.join("\n"));
@@ -557,6 +612,7 @@ function viewForm(r) {
       const rec = {
         id: d.id, title: title.value.trim(), tags: parseTags(tags.value),
         servings: toInt(serv.value), unit: toInt(serv.value) ? unit.value.trim() : "", prep: toInt(prep.value), cook: toInt(cook.value),
+        prepared: parseDates(dates.concat(isoDate(prepared.value) ? prepared.value : "").join(",")),
         ingredients: lines(ing.value), steps: lines(steps.value), notes: notes.value.trim(),
         addedBy: who.value.trim(), fav: d.fav
       };
@@ -585,6 +641,10 @@ function viewForm(r) {
     el("div", { class: "row2 field" },
       el("div", null, el("label", { for: "f-prep" }, "Prep (min)"), prep),
       el("div", null, el("label", { for: "f-cook" }, "Cook (min)"), cook)),
+    el("div", { class: "field" }, el("label", { for: "f-date" }, "Dates prepared"),
+      el("div", { class: "datewrap" }, prepared, addBtn, todayBtn),
+      chipsBox,
+      el("div", { class: "hint" }, "Optional. Add each time you make it. The newest one shows as the last prepared date.")),
     el("div", { class: "field" }, el("label", { for: "f-ing" }, "Ingredients"), ing,
       el("div", { class: "hint" }, "One per line. End a line with a colon to start a group, like “For the sauce:”. Start lines with a number so servings can scale.")),
     el("div", { class: "field" }, el("label", { for: "f-steps" }, "Method"), steps,
