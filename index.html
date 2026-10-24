@@ -111,7 +111,8 @@ a{color:inherit}
 .field{margin-bottom:18px}
 .field label{display:block;font-weight:600;margin-bottom:6px}
 .hint{color:var(--muted);font-size:.88rem;margin-top:5px}
-.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.row2{display:grid;grid-template-columns:1fr 2fr;gap:10px}
+.row2.field{grid-template-columns:1fr 1fr}
 .fielderr{color:var(--danger);font-size:.9rem;margin-top:5px}
 .form h1{font-size:1.9rem;margin-bottom:20px}
 .pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -212,6 +213,7 @@ function norm(r) {
     title: String(r.title || ""),
     tags: parseTags(r.tags),
     servings: toInt(r.servings),
+    unit: (String(r.servings == null ? "" : r.servings).trim().match(/^\d+\s*(.*)$/) || [0, ""])[1].trim(),
     prep: toInt(r.prepMin),
     cook: toInt(r.cookMin),
     ingredients: lines(r.ingredients),
@@ -225,7 +227,7 @@ function norm(r) {
 function toPayload(r) {
   return {
     id: r.id, title: r.title, tags: r.tags.join(", "),
-    servings: r.servings || "", prepMin: r.prep || "", cookMin: r.cook || "",
+    servings: r.servings ? r.servings + (r.unit ? " " + r.unit : "") : "", prepMin: r.prep || "", cookMin: r.cook || "",
     ingredients: r.ingredients.join("\n"), steps: r.steps.join("\n"),
     notes: r.notes, addedBy: r.addedBy, favorite: String(!!r.fav)
   };
@@ -415,7 +417,7 @@ function card(r) {
   const meta = [];
   const total = r.prep + r.cook;
   if (total) meta.push(el("span", null, fmtMin(total)));
-  if (r.servings) meta.push(el("span", null, "Serves " + r.servings));
+  if (r.servings) meta.push(el("span", null, r.unit ? "Makes " + r.servings + " " + r.unit : "Serves " + r.servings));
   return el("a", { class: "card", href: "#/r/" + encodeURIComponent(r.id), style: r.tags[0] ? "--h:" + hue(r.tags[0]) : "" },
     r.fav && el("span", { class: "star", "aria-label": "Favorite" }, "★"),
     el("h3", null, r.title),
@@ -493,7 +495,7 @@ function viewDetail(id) {
   const facts = [];
   if (r.prep) facts.push(el("span", null, "Prep " + fmtMin(r.prep)));
   if (r.cook) facts.push(el("span", null, "Cook " + fmtMin(r.cook)));
-  if (base) facts.push(el("span", { class: "stepper" }, "Serves", minus, num, plus));
+  if (base) facts.push(el("span", { class: "stepper" }, r.unit ? "Makes" : "Serves", minus, num, plus, r.unit ? el("span", null, r.unit) : null));
 
   const node = el("div", { class: "wrap detail" },
     el("a", { class: "back", href: "#/" }, "Back to recipes"),
@@ -519,12 +521,13 @@ function viewDetail(id) {
 
 function viewForm(r) {
   const isNew = !r;
-  const d = r || { id: "", title: "", tags: [], servings: 0, prep: 0, cook: 0, ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "", fav: false };
+  const d = r || { id: "", title: "", tags: [], servings: 0, unit: "", prep: 0, cook: 0, ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "", fav: false };
 
   const title = el("input", { class: "input", type: "text", value: d.title, maxlength: "200", autocomplete: "off", id: "f-title" });
   const titleErr = el("div", { class: "fielderr", role: "alert" });
   const tags = el("input", { class: "input", type: "text", value: d.tags.join(", "), autocomplete: "off", id: "f-tags", placeholder: "dinner, vegetarian" });
   const serv = el("input", { class: "input", type: "number", inputmode: "numeric", min: "1", value: d.servings || "", id: "f-serv" });
+  const unit = el("input", { class: "input", type: "text", value: d.unit, maxlength: "30", autocomplete: "off", id: "f-unit", placeholder: "servings, cookies, loaves…" });
   const prep = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.prep || "", id: "f-prep" });
   const cook = el("input", { class: "input", type: "number", inputmode: "numeric", min: "0", value: d.cook || "", id: "f-cook" });
   const ing = el("textarea", { class: "textarea", rows: "9", id: "f-ing", placeholder: "2 cups flour\n1 1/2 tsp salt\nFor the sauce:\n3 tomatoes" }, d.ingredients.join("\n"));
@@ -553,7 +556,7 @@ function viewForm(r) {
       store.set(LS.name, who.value.trim());
       const rec = {
         id: d.id, title: title.value.trim(), tags: parseTags(tags.value),
-        servings: toInt(serv.value), prep: toInt(prep.value), cook: toInt(cook.value),
+        servings: toInt(serv.value), unit: toInt(serv.value) ? unit.value.trim() : "", prep: toInt(prep.value), cook: toInt(cook.value),
         ingredients: lines(ing.value), steps: lines(steps.value), notes: notes.value.trim(),
         addedBy: who.value.trim(), fav: d.fav
       };
@@ -574,8 +577,12 @@ function viewForm(r) {
     el("div", { class: "field" }, el("label", { for: "f-title" }, "Title"), title, titleErr),
     el("div", { class: "field" }, el("label", { for: "f-tags" }, "Tags"), tags,
       el("div", { class: "hint" }, "Separate with commas."), existing.size ? pick : null),
-    el("div", { class: "row3 field" },
-      el("div", null, el("label", { for: "f-serv" }, "Servings"), serv),
+    el("div", { class: "field" },
+      el("div", { class: "row2" },
+        el("div", null, el("label", { for: "f-serv" }, "Makes"), serv),
+        el("div", null, el("label", { for: "f-unit" }, "Unit"), unit)),
+      el("div", { class: "hint" }, "For example 12 cookies or 2 loaves. Leave the unit empty to show it as servings.")),
+    el("div", { class: "row2 field" },
       el("div", null, el("label", { for: "f-prep" }, "Prep (min)"), prep),
       el("div", null, el("label", { for: "f-cook" }, "Cook (min)"), cook)),
     el("div", { class: "field" }, el("label", { for: "f-ing" }, "Ingredients"), ing,
