@@ -130,6 +130,9 @@ a{color:inherit}
 .ph img{width:100%;height:100%;object-fit:cover;display:block}
 .ph button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;line-height:1}
 .phmsg{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);color:#fff;font-size:.72rem;text-align:center;padding:2px}
+.links{list-style:none;padding:0;margin:0}
+.links li{margin-bottom:6px;overflow-wrap:anywhere}
+.links a{color:var(--accent)}
 .hist{margin-top:26px}
 .hist h2{font-size:1.35rem;margin-bottom:10px}
 .dates{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
@@ -253,6 +256,13 @@ function resizeImage(file, max) {
     img.src = url;
   });
 }
+// returns a safe web address for a "Based on" line, or "" when it is just text
+function linkOf(s) {
+  s = String(s).trim();
+  if (/^https?:\/\/[^\s<>"]+$/i.test(s)) return s;
+  if (/^(www\.)?[\w-]+(\.[\w-]+)*\.[a-z]{2,}(\/[^\s<>"]*)?$/i.test(s) && s.indexOf("@") < 0) return "https://" + s;
+  return "";
+}
 function parseNames(s) {
   const seen = new Set(), out = [];
   String(s == null ? "" : s).split(",").map(x => x.trim()).filter(Boolean).forEach(n => {
@@ -292,7 +302,8 @@ function norm(r) {
     favs: parseNames(r.favoritedBy),
     updated: String(r.updated || ""),
     prepared: parseDates(r.prepared),
-    photos: parsePhotos(r.photos)
+    photos: parsePhotos(r.photos),
+    basedOn: lines(r.basedOn)
   };
 }
 function toPayload(r) {
@@ -300,7 +311,7 @@ function toPayload(r) {
     id: r.id, title: r.title, tags: r.tags.join(", "),
     servings: r.servings ? r.servings + (r.unit ? " " + r.unit : "") : "", prepMin: r.prep || "", cookMin: r.cook || "",
     ingredients: r.ingredients.join("\n"), steps: r.steps.join("\n"),
-    notes: r.notes, addedBy: r.addedBy, prepared: (r.prepared || []).join(", "), photos: (r.photos || []).join(",")
+    notes: r.notes, addedBy: r.addedBy, prepared: (r.prepared || []).join(", "), photos: (r.photos || []).join(","), basedOn: (r.basedOn || []).join("\n")
   };
 }
 function errMsg(e) {
@@ -660,6 +671,10 @@ function viewDetail(id) {
           g.title && el("h3", { class: "subhead" }, g.title),
           g.items.length ? el("ol", { class: "steps" }, g.items.map(s => el("li", null, s))) : null))) : el("p", { class: "hint" }, "No steps listed."))
     ),
+    r.basedOn.length > 0 && el("section", { class: "hist" },
+      el("h2", null, "Based on"),
+      el("ul", { class: "links" }, r.basedOn.map(x => { const u = linkOf(x);
+        return el("li", null, u ? el("a", { href: u, target: "_blank", rel: "noopener noreferrer" }, x) : x); }))),
     hist,
     r.notes && el("div", { class: "notes" }, r.notes),
     r.addedBy && el("p", { class: "credit" }, "Added by " + r.addedBy),
@@ -676,7 +691,7 @@ function viewDetail(id) {
 
 function viewForm(r) {
   const isNew = !r;
-  const d = r || { id: "", title: "", tags: [], servings: 0, unit: "", prep: 0, cook: 0, prepared: [], photos: [], ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "" };
+  const d = r || { id: "", title: "", tags: [], servings: 0, unit: "", prep: 0, cook: 0, prepared: [], photos: [], basedOn: [], ingredients: [], steps: [], notes: "", addedBy: store.get(LS.name) || "" };
 
   const title = el("input", { class: "input", type: "text", value: d.title, maxlength: "200", autocomplete: "off", id: "f-title" });
   const titleErr = el("div", { class: "fielderr", role: "alert" });
@@ -737,6 +752,7 @@ function viewForm(r) {
   const ing = el("textarea", { class: "textarea", rows: "9", id: "f-ing", placeholder: "Popcorn:\n1/2 cup corn kernels\n1 tbsp oil\nCaramel:\n125g butter\n2/3 cup sugar" }, d.ingredients.join("\n"));
   const steps = el("textarea", { class: "textarea", rows: "9", id: "f-steps", placeholder: "Popcorn:\nHeat the oil in a pot.\nAdd the kernels.\nCaramel:\nMelt the butter and sugar." }, d.steps.join("\n"));
   const notes = el("textarea", { class: "textarea", rows: "3", id: "f-notes" }, d.notes);
+  const basedOn = el("textarea", { class: "textarea", rows: "2", id: "f-based", placeholder: "https://…" }, (d.basedOn || []).join("\n"));
   const who = el("input", { class: "input", type: "text", value: d.addedBy, maxlength: "60", autocomplete: "given-name", id: "f-who" });
   const whoErr = el("div", { class: "fielderr", role: "alert" });
 
@@ -764,7 +780,7 @@ function viewForm(r) {
         servings: toInt(serv.value), unit: toInt(serv.value) ? unit.value.trim() : "", prep: toInt(prep.value), cook: toInt(cook.value),
         prepared: parseDates(dates.concat(isoDate(prepared.value) ? prepared.value : "").join(",")),
         photos: photos.filter(p => p.id).map(p => p.id),
-        ingredients: lines(ing.value), steps: lines(steps.value), notes: notes.value.trim(),
+        ingredients: lines(ing.value), steps: lines(steps.value), basedOn: lines(basedOn.value), notes: notes.value.trim(),
         addedBy: who.value.trim(), favs: d.favs || []
       };
       save.disabled = true; save.textContent = "Saving…";
@@ -805,6 +821,8 @@ function viewForm(r) {
       el("div", { class: "hint" }, "One per line. For a subheading, type it on its own line ending with a colon, like “Popcorn:”. Numbering starts again at 1 under each subheading. Start lines with a number so servings can scale.")),
     el("div", { class: "field" }, el("label", { for: "f-steps" }, "Method"), steps,
       el("div", { class: "hint" }, "One step per line. Add subheadings the same way, like “Caramel:”.")),
+    el("div", { class: "field" }, el("label", { for: "f-based" }, "Based on"), basedOn,
+      el("div", { class: "hint" }, "Paste a link if you used one. One per line.")),
     el("div", { class: "field" }, el("label", { for: "f-notes" }, "Notes"), notes),
     el("div", { class: "field" }, el("label", { for: "f-who" }, "Added by"), who, whoErr),
     el("div", { class: "btnrow" }, save)
