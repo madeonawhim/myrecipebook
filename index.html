@@ -358,10 +358,7 @@ function viewList() {
     oninput: ev => { S.q = ev.target.value; paintList(); } });
   const wrap = el("div", { class: "wrap" },
     el("div", { class: "top" },
-      el("div", null, el("h1", null, "My Recipe Book"), el("div", { class: "sub", id: "count" })),
-      el("div", { class: "actions" },
-        el("button", { class: "linkbtn", type: "button", onclick: () => load(false) }, "Refresh")
-      )
+      el("div", null, el("h1", null, "My Recipe Book"), el("div", { class: "sub", id: "count" }))
     ),
     q,
     el("div", { class: "chips", id: "chips" }),
