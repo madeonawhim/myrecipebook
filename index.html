@@ -86,6 +86,9 @@ a{color:inherit}
 .btn.danger{color:var(--danger);border-color:var(--danger)}
 .btn.wide{width:100%}
 .btn:disabled{opacity:.6;cursor:default}
+[hidden]{display:none !important}
+.btnrow.tight{margin-top:12px}
+.delpanel{margin-top:20px;max-width:380px}
 .btnrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
 
 .back{background:none;border:0;padding:8px 0;margin-bottom:8px;color:var(--muted);text-decoration:none;display:inline-block}
@@ -230,7 +233,9 @@ function toPayload(r) {
 function errMsg(e) {
   const m = e && e.message;
   if (m === "missing_title") return "Add a title first.";
-  return "Couldn’t reach the recipe sheet. Check your connection and try again.";
+  if (m === "wrong_passcode") return "That passcode is wrong.";
+  if (m === "bad_response") return "The script answered, but not with recipe data. Check that access is set to Anyone and the URL ends in /exec.";
+  return "Couldn’t reach the recipe sheet (" + (m || "unknown error") + "). Check your connection and try again.";
 }
 function toast(msg) {
   document.querySelectorAll(".toast").forEach(t => t.remove());
@@ -460,18 +465,33 @@ function viewDetail(id) {
   });
   paintFav();
 
-  let armed = false, timer = null;
+  const delPass = el("input", { class: "input", type: "password", placeholder: "Delete passcode", autocomplete: "off", "aria-label": "Delete passcode" });
+  const delErr = el("div", { class: "fielderr", role: "alert" });
+  const delGo = el("button", { class: "btn danger", type: "submit" }, "Delete recipe");
+  const delCancel = el("button", { class: "btn", type: "button" }, "Cancel");
   const del = el("button", { class: "btn danger", type: "button" }, "Delete");
-  del.addEventListener("click", async () => {
-    if (!armed) {
-      armed = true; del.textContent = "Tap again to delete";
-      timer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 4000);
-      return;
+  const delPanel = el("form", {
+    class: "delpanel", hidden: true,
+    onsubmit: async ev => {
+      ev.preventDefault();
+      delErr.textContent = "";
+      if (!delPass.value) { delErr.textContent = "Enter the passcode."; return; }
+      delGo.disabled = true; delGo.textContent = "Deleting…";
+      try {
+        const d = await api("delete", { id: r.id, deletePasscode: delPass.value });
+        setRecipes(d.recipes); toast("Deleted"); location.hash = "#/";
+      } catch (e) {
+        delGo.disabled = false; delGo.textContent = "Delete recipe";
+        delErr.textContent = errMsg(e);
+      }
     }
-    clearTimeout(timer); del.disabled = true; del.textContent = "Deleting…";
-    try { const d = await api("delete", { id: r.id }); setRecipes(d.recipes); toast("Deleted"); location.hash = "#/"; }
-    catch (e) { armed = false; del.disabled = false; del.textContent = "Delete"; toast(errMsg(e)); }
-  });
+  },
+    el("p", { class: "hint" }, "Enter the passcode to delete this recipe."),
+    delPass, delErr,
+    el("div", { class: "btnrow tight" }, delGo, delCancel)
+  );
+  del.addEventListener("click", () => { delPanel.hidden = false; del.hidden = true; delPass.focus(); });
+  delCancel.addEventListener("click", () => { delPanel.hidden = true; del.hidden = false; delPass.value = ""; delErr.textContent = ""; });
 
   const facts = [];
   if (r.prep) facts.push(el("span", null, "Prep " + fmtMin(r.prep)));
@@ -493,7 +513,8 @@ function viewDetail(id) {
     r.addedBy && el("p", { class: "credit" }, "Added by " + r.addedBy),
     el("div", { class: "btnrow" },
       el("a", { class: "btn primary", href: "#/edit/" + encodeURIComponent(r.id), style: "text-decoration:none" }, "Edit"),
-      favBtn, del)
+      favBtn, del),
+    delPanel
   );
   paintIng();
   return node;
@@ -531,7 +552,7 @@ function viewForm(r) {
       ev.preventDefault();
       titleErr.textContent = ""; whoErr.textContent = "";
       if (!title.value.trim()) { titleErr.textContent = "Add a title."; title.focus(); return; }
-      if (!who.value.trim()) { whoErr.textContent = "Enter your name."; who.focus(); return; }
+      if (!who.value.trim()) { whoErr.textContent = "Enter a name."; who.focus(); return; }
       store.set(LS.name, who.value.trim());
       const rec = {
         id: d.id, title: title.value.trim(), tags: parseTags(tags.value),
@@ -565,8 +586,7 @@ function viewForm(r) {
     el("div", { class: "field" }, el("label", { for: "f-steps" }, "Method"), steps,
       el("div", { class: "hint" }, "One step per line.")),
     el("div", { class: "field" }, el("label", { for: "f-notes" }, "Notes"), notes),
-    el("div", { class: "field" }, el("label", { for: "f-who" }, "Your name"), who, whoErr,
-      el("div", { class: "hint" }, "Shown on the recipe as “Added by”.")),
+    el("div", { class: "field" }, el("label", { for: "f-who" }, "Added by"), who, whoErr),
     el("div", { class: "btnrow" }, save)
   );
   return form;
